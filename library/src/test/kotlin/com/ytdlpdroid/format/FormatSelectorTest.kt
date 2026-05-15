@@ -90,13 +90,29 @@ class FormatSelectorTest {
     }
 
     @Test
-    fun `no audio stream throws NoStreamsFound`() {
+    fun `no audio stream and no muxed throws NoStreamsFound`() {
         val formats = resolve(
             videoFmt(137, 1080, "video/mp4; codecs=\"avc1.640028\""),
         )
         assertThrows(YTDLPError.NoStreamsFound::class.java) {
             FormatSelector.select(formats, ExtractionOptions())
         }
+    }
+
+    @Test
+    fun `muxed used as audio fallback when no audio-only adaptive streams`() {
+        // Some InnerTube clients return only video-only adaptive + muxed formats for certain
+        // videos (e.g. 93QIhAbxmdc). We must not throw — use the best muxed as the audio.
+        val formats = resolve(
+            videoFmt(137, 1080, "video/mp4; codecs=\"avc1.640028\""),
+            muxedFmt(22, 720),
+            muxedFmt(18, 360),
+        )
+        val result = FormatSelector.select(formats, ExtractionOptions())
+        assertNull(result.video)
+        assertNotNull(result.audio)
+        assertEquals(720, result.audio.height)  // best muxed (highest res)
+        assertNotNull(result.muxed)
     }
 
     @Test

@@ -43,14 +43,24 @@ internal object FormatSelector {
             .filter { (f, _) -> MimeTypeParser.isVideo(f.mimeType) && f.audioSampleRate != null }
             .map { (f, url) -> toStreamFormat(f, url) }
 
+        val bestMuxed = muxedFormats.maxByOrNull { it.height ?: 0 }
         val bestAudio = selectBestAudio(audioFormats, options)
-            ?: throw YTDLPError.NoStreamsFound("No audio-only adaptive stream found")
 
-        return Selection(
-            video = selectBestVideo(videoFormats, options),
-            audio = bestAudio,
-            muxed = if (options.includeMuxedFallback) muxedFormats.maxByOrNull { it.height ?: 0 } else null,
-        )
+        return if (bestAudio != null) {
+            Selection(
+                video = selectBestVideo(videoFormats, options),
+                audio = bestAudio,
+                muxed = if (options.includeMuxedFallback) bestMuxed else null,
+            )
+        } else {
+            // No audio-only adaptive streams — fall back to best muxed (contains both audio
+            // and video). video=null signals the caller to use the muxed stream for playback.
+            Selection(
+                video = null,
+                audio = bestMuxed ?: throw YTDLPError.NoStreamsFound("No audio-only adaptive stream found"),
+                muxed = bestMuxed,
+            )
+        }
     }
 
     private fun selectBestVideo(formats: List<StreamFormat>, opts: ExtractionOptions): StreamFormat? {
