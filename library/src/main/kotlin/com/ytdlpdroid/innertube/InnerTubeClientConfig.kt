@@ -1,5 +1,7 @@
 package com.ytdlpdroid.innertube
 
+private const val INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+
 internal sealed class InnerTubeClientConfig(
     val clientName: String,
     val clientNumber: String,
@@ -14,6 +16,12 @@ internal sealed class InnerTubeClientConfig(
     val apiKey: String? = null,
     /** Whether to include a playbackContext block in the request body. */
     val usePlaybackContext: Boolean = false,
+    /**
+     * Whether to include signatureTimestamp (sts) inside playbackContext.
+     * sts is extracted from the WEB player JS and is only valid for browser-based clients.
+     * Sending it to Android/iOS clients causes a player-version mismatch → UNPLAYABLE.
+     */
+    val includeSignatureTimestamp: Boolean = false,
 ) {
     /**
      * Returns top-level body fields that may depend on the video ID.
@@ -30,6 +38,7 @@ internal sealed class InnerTubeClientConfig(
         extraClientFields = """"osName": "Android", "osVersion": "11",""",
         extraBodyFields = """"params": "8AEB",""",
         usePlaybackContext = true,
+        // sts not sent — Android player version differs from web player version
     )
 
     object ANDROID_TESTSUITE : InnerTubeClientConfig(
@@ -61,8 +70,9 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "1.65.10",
         userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip",
         androidSdkVersion = 32,
-        // Device fingerprint matching the Oculus Quest 3 — required for YouTube to trust this client.
         extraClientFields = """"osName": "Android", "osVersion": "12L", "deviceMake": "Oculus", "deviceModel": "Quest 3",""",
+        extraBodyFields = """"params": "8AEB",""",
+        apiKey = INNERTUBE_API_KEY,
         usePlaybackContext = true,
     )
 
@@ -80,6 +90,7 @@ internal sealed class InnerTubeClientConfig(
         clientNumber = "2",
         clientVersion = "2.20240726.00.00",
         userAgent = "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
+        apiKey = INNERTUBE_API_KEY,
     )
 
     object WEB_EMBEDDED : InnerTubeClientConfig(
@@ -88,7 +99,9 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "2.20240101.00.00",
         userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         extraBodyFields = """"thirdParty": {"embedUrl": "https://www.youtube.com/"},""",
-        apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
+        apiKey = INNERTUBE_API_KEY,
+        usePlaybackContext = true,
+        includeSignatureTimestamp = true,
     )
 
     object WEB : InnerTubeClientConfig(
@@ -97,8 +110,9 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "2.20240101.00.00",
         userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         extraClientFields = """"originalUrl": "https://www.youtube.com", "platform": "DESKTOP", "utcOffsetMinutes": 0,""",
-        apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
+        apiKey = INNERTUBE_API_KEY,
         usePlaybackContext = true,
+        includeSignatureTimestamp = true,
     )
 }
 
@@ -115,7 +129,11 @@ internal fun InnerTubeClientConfig.buildRequestBody(
     val glValue = regionCode ?: "US"
     val dynamicFields = dynamicBodyFields(videoId)
     val playbackCtxField = if (usePlaybackContext) {
-        val stsField = signatureTimestamp?.let { """, "signatureTimestamp": $it""" } ?: ""
+        // Only browser clients get signatureTimestamp — sts comes from the web player JS and
+        // is invalid for Android/iOS player versions, causing UNPLAYABLE if sent to them.
+        val stsField = if (includeSignatureTimestamp) {
+            signatureTimestamp?.let { """, "signatureTimestamp": $it""" } ?: ""
+        } else ""
         """"playbackContext": {"contentPlaybackContext": {"html5Preference": "HTML5_PREF_WANTS"$stsField}},"""
     } else ""
     return """
