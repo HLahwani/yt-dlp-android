@@ -8,6 +8,9 @@ sealed class YTDLPError(message: String, cause: Throwable? = null) : Exception(m
     class VideoUnavailable(videoId: String, reason: String?) :
         YTDLPError("Video $videoId is unavailable${reason?.let { ": $it" } ?: ""}")
 
+    class GeoBlocked(videoId: String, reason: String?) :
+        YTDLPError("Video $videoId is not available in this region${reason?.let { ": $it" } ?: ""}")
+
     class AgeRestricted(videoId: String) :
         YTDLPError("Video $videoId requires age verification — all clients failed to bypass")
 

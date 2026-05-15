@@ -10,8 +10,16 @@ internal object PlayerResponseParser {
         when (raw.playabilityStatus.status) {
             "OK" -> Unit
             "LOGIN_REQUIRED" -> throw YTDLPError.AgeRestricted(videoId)
-            "UNPLAYABLE" -> throw YTDLPError.VideoUnavailable(videoId, raw.playabilityStatus.reason)
-            "ERROR" -> throw YTDLPError.VideoUnavailable(videoId, raw.playabilityStatus.reason)
+            "UNPLAYABLE" -> {
+                val reason = raw.playabilityStatus.reason
+                if (isGeoRestricted(reason)) throw YTDLPError.GeoBlocked(videoId, reason)
+                throw YTDLPError.VideoUnavailable(videoId, reason)
+            }
+            "ERROR" -> {
+                val reason = raw.playabilityStatus.reason
+                if (isGeoRestricted(reason)) throw YTDLPError.GeoBlocked(videoId, reason)
+                throw YTDLPError.VideoUnavailable(videoId, reason)
+            }
             "LIVE_STREAM_OFFLINE" -> throw YTDLPError.LiveStreamNotSupported(videoId)
             else -> throw YTDLPError.VideoUnavailable(videoId, "status: ${raw.playabilityStatus.status}")
         }
@@ -34,4 +42,15 @@ internal object PlayerResponseParser {
     }
 
     fun isLive(raw: RawPlayerResponse): Boolean = raw.videoDetails?.isLiveContent == true
+
+    /** Returns true when the playability reason indicates a geo/region restriction. */
+    private fun isGeoRestricted(reason: String?): Boolean {
+        if (reason == null) return false
+        val r = reason.lowercase()
+        return r.contains("country") ||
+               r.contains("region") ||
+               r.contains("location") ||
+               r.contains("not available in your") ||
+               r.contains("not made this video available")
+    }
 }

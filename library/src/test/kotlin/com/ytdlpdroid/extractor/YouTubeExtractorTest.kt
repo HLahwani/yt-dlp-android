@@ -77,13 +77,13 @@ class YouTubeExtractorTest {
         val client = mockk<InnerTubeClient>()
         val extractor = YouTubeExtractor(client, makeRepo(), makeDecipher(), primeCache(cachedResult()))
         extractor.extract("testVid", ExtractionOptions())
-        coVerify(exactly = 0) { client.fetchPlayerResponse(any(), any()) }
+        coVerify(exactly = 0) { client.fetchPlayerResponse(any(), any(), any()) }
     }
 
     @Test
     fun `successful ANDROID response returns StreamResult`() = runTest {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID) } returns okResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any()) } returns okResponse()
         }
         val result = YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
             .extract("testVid", ExtractionOptions())
@@ -93,26 +93,28 @@ class YouTubeExtractorTest {
 
     @Test
     fun `age-gated ANDROID falls through to ANDROID_VR`() = runTest {
+        // Chain order: ANDROID → ANDROID_VR → ... ANDROID_VR is now position 2.
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_TESTSUITE) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR) } returns okResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.IOS) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.MWEB) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.WEB_EMBEDDED) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.WEB) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any()) } returns okResponse()
+            // Remaining clients unreachable since ANDROID_VR succeeds
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_TESTSUITE, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.IOS, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.MWEB, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.WEB_EMBEDDED, any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.WEB, any()) } returns ageGatedResponse()
         }
         val result = YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
             .extract("testVid", ExtractionOptions())
         assertEquals("testVid", result.videoId)
-        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR) }
+        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any()) }
     }
 
     @Test
     fun `all clients age-gated throws AllClientsFailed`() {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), any(), any()) } returns ageGatedResponse()
         }
         assertThrows(YTDLPError.AllClientsFailed::class.java) {
             runBlocking {
@@ -126,7 +128,7 @@ class YouTubeExtractorTest {
     fun `live stream throws LiveStreamNotSupported`() {
         val liveResponse = okResponse().copy(videoDetails = okDetails.copy(isLiveContent = true))
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID) } returns liveResponse
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any()) } returns liveResponse
         }
         assertThrows(YTDLPError.LiveStreamNotSupported::class.java) {
             runBlocking {
@@ -139,11 +141,36 @@ class YouTubeExtractorTest {
     @Test
     fun `result is stored in cache after successful extraction`() = runTest {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID) } returns okResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any()) } returns okResponse()
         }
         val cache = emptyCache()
         YouTubeExtractor(client, makeRepo(), makeDecipher(), cache)
             .extract("testVid", ExtractionOptions())
         coVerify { cache.put("testVid", any()) }
+    }
+
+    @Test
+    fun `geo-blocked video throws GeoBlocked`() {
+        val geoResponse = RawPlayerResponse(
+            RawPlayabilityStatus("UNPLAYABLE", "This video is not available in your country"))
+        val client = mockk<InnerTubeClient> {
+            coEvery { fetchPlayerResponse(any(), any(), any()) } returns geoResponse
+        }
+        assertThrows(YTDLPError.GeoBlocked::class.java) {
+            runBlocking {
+                YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
+                    .extract("testVid", ExtractionOptions())
+            }
+        }
+    }
+
+    @Test
+    fun `regionCode is threaded to InnerTube requests`() = runTest {
+        val client = mockk<InnerTubeClient> {
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, "DE") } returns okResponse()
+        }
+        YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
+            .extract("testVid", ExtractionOptions(regionCode = "DE"))
+        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, "DE") }
     }
 }

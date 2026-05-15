@@ -30,9 +30,19 @@ class PlayerResponseParserTest {
     }
 
     @Test
-    fun `checkPlayability UNPLAYABLE throws VideoUnavailable`() {
-        assertThrows(YTDLPError.VideoUnavailable::class.java) {
+    fun `checkPlayability UNPLAYABLE with geo reason throws GeoBlocked`() {
+        // The fixture reason is "not available in your country" — triggers GeoBlocked
+        assertThrows(YTDLPError.GeoBlocked::class.java) {
             PlayerResponseParser.checkPlayability(parse("player_response_unplayable.json"), "vid")
+        }
+    }
+
+    @Test
+    fun `checkPlayability UNPLAYABLE without geo reason throws VideoUnavailable`() {
+        val raw = json.decodeFromString<com.ytdlpdroid.innertube.model.RawPlayerResponse>(
+            """{"playabilityStatus":{"status":"UNPLAYABLE","reason":"Content is private."}}""")
+        assertThrows(YTDLPError.VideoUnavailable::class.java) {
+            PlayerResponseParser.checkPlayability(raw, "vid")
         }
     }
 
