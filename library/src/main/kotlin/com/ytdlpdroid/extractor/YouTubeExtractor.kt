@@ -83,6 +83,7 @@ internal class YouTubeExtractor(
         regionCode: String?,
     ): Pair<RawPlayerResponse, InnerTubeClientConfig> {
         var lastError: Throwable? = null
+        var geoBlockedError: YTDLPError.GeoBlocked? = null
         for (client in clientChain) {
             try {
                 val response = innerTubeClient.fetchPlayerResponse(videoId, client, regionCode)
@@ -91,15 +92,17 @@ internal class YouTubeExtractor(
             } catch (e: YTDLPError.LiveStreamNotSupported) {
                 throw e  // no point trying other clients for an offline live stream
             } catch (e: YTDLPError.GeoBlocked) {
-                // Geo-block on one client doesn't rule out others (ANDROID_VR bypasses more).
-                lastError = e; continue
+                // Remember the geo-block even if later clients fail for other reasons
+                // (e.g. bot-detection prevents the bypass from working).
+                geoBlockedError = e; lastError = e; continue
             } catch (e: YTDLPError) {
                 lastError = e; continue
             }
         }
-        // If every client returned a geo-block, surface that specific error so callers
-        // can distinguish geo-restriction from other failures.
-        throw if (lastError is YTDLPError.GeoBlocked) lastError
-              else YTDLPError.AllClientsFailed(videoId)
+        // Surface geo-restriction if any client indicated it — the video is geo-blocked
+        // and bypass clients were also blocked (bot-detection on non-residential IPs).
+        // Otherwise throw AllClientsFailed with the last error attached as cause so
+        // callers get a diagnosable message (e.g. "UNPLAYABLE: page needs to be reloaded").
+        throw geoBlockedError ?: YTDLPError.AllClientsFailed(videoId, lastError)
     }
 }
