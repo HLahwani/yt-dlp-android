@@ -55,8 +55,9 @@ class NParamDeciphererTest {
         val url = "https://example.com/video?n=abc"
         decipherer.transform(url, playerJs)
         decipherer.transform(url, playerJs)
-        // execute called twice (once per transform call) but function extraction is cached
-        verify(exactly = 2) { engine.execute(any(), any()) }
+        // 2 validation calls (isPlausibleNsigFunction with 2 test inputs) + 2 transform calls = 4 total.
+        // Extraction + validation happen only once (result is cached for the player JS hash).
+        verify(exactly = 4) { engine.execute(any(), any()) }
     }
 
     @Test

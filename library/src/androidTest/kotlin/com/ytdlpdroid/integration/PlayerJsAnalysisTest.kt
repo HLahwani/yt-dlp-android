@@ -3,6 +3,7 @@ package com.ytdlpdroid.integration
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ytdlpdroid.decipher.PlayerJsRepository
+import com.ytdlpdroid.js.QuickJsEngine
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,56 +13,81 @@ import java.io.File
 class PlayerJsAnalysisTest {
 
     private val ctx get() = InstrumentationRegistry.getInstrumentation().targetContext
-
     private fun repo() = PlayerJsRepository(
-        File(ctx.cacheDir, "ytdlpdroid_analysis").also { it.mkdirs() }
-    )
+        File(ctx.cacheDir, "ytdlpdroid_analysis").also { it.mkdirs() })
 
     @Test
-    fun findP7AndZOFunctions() {
+    fun probeBeforeException() {
         val playerJsUrl = "/s/player/25f11721/player-plasma-es6-en_US.vflset/base.js"
         val pjs = runBlocking { repo().fetchPlayerJs(playerJsUrl) }
-        println("length=${pjs.length}\n")
+        println("length=${pjs.length}")
 
-        // ---- 1. p7 function (URL parser, called from Fv(8,5464,...)) ----
-        println("=== p7 function ===")
-        Regex("""(?:^|[^a-zA-Z0-9_])p7\s*=\s*function[^{]{0,50}\{[^§]{0,3000}""").find(pjs)?.let { m ->
-            println(m.value.take(3000))
-        } ?: println("p7 not found")
+        val shim = """
+var self=globalThis;
+if(typeof document==='undefined'){var document={createElement:function(){return{style:{},setAttribute:function(){},appendChild:function(){},addEventListener:function(){},classList:{add:function(){},remove:function(){}}};},getElementById:function(){return null;},querySelector:function(){return null;},querySelectorAll:function(){return{length:0,forEach:function(){}};},head:{appendChild:function(){},querySelector:function(){return null;},insertBefore:function(){}},body:{appendChild:function(){},insertBefore:function(){}},addEventListener:function(){},createTextNode:function(t){return{textContent:t};}}}
+if(typeof navigator==='undefined'){var navigator={userAgent:'Mozilla/5.0',platform:'Win32',language:'en-US',languages:['en-US'],cookieEnabled:true}}
+if(typeof location==='undefined'){var location={href:'https://www.youtube.com/',origin:'https://www.youtube.com',hostname:'www.youtube.com',protocol:'https:',pathname:'/',search:'',hash:''}}
+if(typeof localStorage==='undefined'){var localStorage={getItem:function(){return null;},setItem:function(){},removeItem:function(){},clear:function(){},length:0}}
+if(typeof sessionStorage==='undefined'){var sessionStorage={getItem:function(){return null;},setItem:function(){},removeItem:function(){}}}
+if(typeof performance==='undefined'){var performance={now:function(){return Date.now();},timing:{navigationStart:0}}}
+if(typeof XMLHttpRequest==='undefined'){var XMLHttpRequest=function(){this.open=function(){};this.send=function(){};this.setRequestHeader=function(){};this.addEventListener=function(){};}}
+if(typeof fetch==='undefined'){var fetch=function(){return Promise.reject(new Error('no fetch'));}}
+if(typeof MutationObserver==='undefined'){var MutationObserver=function(fn){this.observe=function(){};this.disconnect=function(){};}}
+if(typeof requestAnimationFrame==='undefined'){var requestAnimationFrame=function(fn){return 0;};}
+if(typeof screen==='undefined'){var screen={width:1920,height:1080,colorDepth:24};}
+if(typeof crypto==='undefined'){var crypto={getRandomValues:function(a){for(var i=0;i<a.length;i++)a[i]=Math.floor(Math.random()*256);return a;}};}
+""".trimIndent()
 
-        // ---- 2. ZO function (URL builder, called from Nf()) ----
-        println("\n\n=== ZO function ===")
-        Regex("""(?:^|[^a-zA-Z0-9_])ZO\s*=\s*function[^{]{0,50}\{[^§]{0,3000}""").find(pjs)?.let { m ->
-            println(m.value.take(3000))
-        } ?: println("ZO not found")
+        val engine = QuickJsEngine()
+        // Injection point: just before the exception (177979 confirmed working)
+        val injectPos = pjs.lastIndexOf(';', 177979) + 1
+        println("injection pos: $injectPos")
 
-        // ---- 3. Sr function (URL serializer, calls Fv(15,5471,...)) ----
-        println("\n\n=== Sr function ===")
-        Regex("""(?:^|[^a-zA-Z0-9_])Sr\s*=\s*function[^{]{0,50}\{[^§]{0,2000}""").find(pjs)?.let { m ->
-            println(m.value.take(2000))
-        } ?: println("Sr not found")
-
-        // ---- 4. k2 function (called from kU) ----
-        println("\n\n=== k2 function ===")
-        Regex("""(?:^|[^a-zA-Z0-9_])k2\s*=\s*function[^{]{0,50}\{[^§]{0,2000}""").find(pjs)?.let { m ->
-            println(m.value.take(2000))
-        } ?: println("k2 not found")
-
-        // ---- 5. si function (called from wD) ----
-        println("\n\n=== si function ===")
-        Regex("""(?:^|[^a-zA-Z0-9_$])si\s*=\s*function[^{]{0,50}\{[^§]{0,1000}""").find(pjs)?.let { m ->
-            println(m.value.take(1000))
-        } ?: println("si not found")
-
-        // ---- 6. Try to find n-param in URL-related operations ----
-        // Search for where y[19] (="n") appears with y[31] (="get") or near "set"
-        println("\n\n=== Any reference to n-param operations ===")
-        // Search 500-char window around each occurrence of y[19]
-        Regex("""y\[19\]""").findAll(pjs).take(10).forEachIndexed { i, m ->
-            val s = maxOf(0, m.range.first - 200)
-            val e = minOf(pjs.length, m.range.last + 200)
-            println("\n[y19-$i pos=${m.range.first}]")
-            println(pjs.substring(s, e))
+        // Test simple probes first
+        fun probe(hookJs: String, readKey: String): String? {
+            val p = pjs.substring(0, injectPos) + hookJs + pjs.substring(injectPos)
+            return engine.executeWithPlayerJs(shim + "\n" + p, readKey)
         }
+
+        println("\n--- Simple probes at pos $injectPos ---")
+        println("typeof g: ${probe(";globalThis.s1=typeof g;", "globalThis.s1")}")
+        println("Object.keys(g).length: ${probe(";globalThis.s2=Object.keys(g).length;", "globalThis.s2")}")
+        println("typeof wD: ${probe(";globalThis.s3=typeof wD;", "globalThis.s3")}")
+        println("typeof uF: ${probe(";globalThis.s4=typeof uF;", "globalThis.s4")}")
+
+        // Get first 20 keys of g that are 2-4 chars
+        println("\n--- 2-4 char keys of g ---")
+        val keysProbe = """
+;try{
+    var k24=Object.keys(g).filter(function(k){return k.length>=2&&k.length<=4;});
+    globalThis.s5=k24.length+':'+k24.slice(0,20).join(',');
+}catch(e){globalThis.s5='err:'+e;}
+"""
+        println("2-4 char keys: ${probe(keysProbe, "globalThis.s5")}")
+
+        // Test each 2-4 char key individually for nsig-like behavior
+        println("\n--- Test nsig candidates (2-4 char g keys returning base64url) ---")
+        val ti = "abcdefghijklmnopq" // 17-char test
+        val ti2 = "qponmlkjihgfedcbaZ" // different input
+        val nsigProbe = """
+;try{
+    var ti="$ti",ti2="$ti2",found=[];
+    var k24=Object.keys(g).filter(function(k){return k.length>=2&&k.length<=4&&typeof g[k]==='function';});
+    for(var i=0;i<k24.length;i++){
+        try{
+            var k=k24[i],fn=g[k];
+            var r1=fn(ti),r2=fn(ti2);
+            if(typeof r1==='string'&&r1!==ti&&r1!=='undefined'&&r1.indexOf('=')<0&&r1.indexOf('/')<0&&r1.length>=5&&r1.length<=ti.length+2&&r1!==r2)
+                found.push(k+'->'+r1);
+        }catch(e){}
+    }
+    globalThis.s6=found.length+': '+found.slice(0,5).join(';');
+}catch(e){globalThis.s6='outer_err:'+e;}
+"""
+        println("nsig candidates: ${probe(nsigProbe, "globalThis.s6")}")
+
+        // What's around position 177979-181123? Print context
+        println("\n--- Context around exception (177979-181123) ---")
+        println(pjs.substring(177900, minOf(pjs.length, 181200)))
     }
 }
