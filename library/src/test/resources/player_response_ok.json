@@ -1,0 +1,111 @@
+{
+  "playabilityStatus": {
+    "status": "OK",
+    "playableInEmbed": true
+  },
+  "streamingData": {
+    "expiresInSeconds": "21540",
+    "formats": [
+      {
+        "itag": 18,
+        "url": "https://rr1---sn-example.googlevideo.com/videoplayback?itag=18&expire=9999999999&n=test_n_param",
+        "mimeType": "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"",
+        "bitrate": 508938,
+        "width": 640,
+        "height": 360,
+        "contentLength": "13475203",
+        "quality": "medium",
+        "fps": 30,
+        "qualityLabel": "360p",
+        "audioQuality": "AUDIO_QUALITY_LOW",
+        "approxDurationMs": "211560",
+        "audioSampleRate": "44100",
+        "audioChannels": 2
+      }
+    ],
+    "adaptiveFormats": [
+      {
+        "itag": 137,
+        "url": "https://rr1---sn-example.googlevideo.com/videoplayback?itag=137&expire=9999999999&n=test_n_param",
+        "mimeType": "video/mp4; codecs=\"avc1.640028\"",
+        "bitrate": 2500000,
+        "width": 1920,
+        "height": 1080,
+        "initRange": { "start": "0", "end": "739" },
+        "indexRange": { "start": "740", "end": "1243" },
+        "contentLength": "65836229",
+        "quality": "hd1080",
+        "fps": 30,
+        "qualityLabel": "1080p",
+        "approxDurationMs": "211560"
+      },
+      {
+        "itag": 248,
+        "url": "https://rr1---sn-example.googlevideo.com/videoplayback?itag=248&expire=9999999999&n=test_n_param",
+        "mimeType": "video/webm; codecs=\"vp9\"",
+        "bitrate": 1800000,
+        "width": 1920,
+        "height": 1080,
+        "initRange": { "start": "0", "end": "219" },
+        "indexRange": { "start": "220", "end": "851" },
+        "contentLength": "47123456",
+        "quality": "hd1080",
+        "fps": 30,
+        "qualityLabel": "1080p",
+        "approxDurationMs": "211560"
+      },
+      {
+        "itag": 251,
+        "url": "https://rr1---sn-example.googlevideo.com/videoplayback?itag=251&expire=9999999999&n=test_n_param",
+        "mimeType": "audio/webm; codecs=\"opus\"",
+        "bitrate": 130076,
+        "initRange": { "start": "0", "end": "258" },
+        "indexRange": { "start": "259", "end": "642" },
+        "contentLength": "3436983",
+        "quality": "tiny",
+        "approxDurationMs": "211600",
+        "audioQuality": "AUDIO_QUALITY_MEDIUM",
+        "audioSampleRate": "48000",
+        "audioChannels": 2
+      },
+      {
+        "itag": 140,
+        "url": "https://rr1---sn-example.googlevideo.com/videoplayback?itag=140&expire=9999999999&n=test_n_param",
+        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+        "bitrate": 130516,
+        "initRange": { "start": "0", "end": "631" },
+        "indexRange": { "start": "632", "end": "1091" },
+        "contentLength": "3448644",
+        "quality": "tiny",
+        "approxDurationMs": "211573",
+        "audioQuality": "AUDIO_QUALITY_MEDIUM",
+        "audioSampleRate": "44100",
+        "audioChannels": 2
+      }
+    ]
+  },
+  "videoDetails": {
+    "videoId": "jNQXAC9IVRw",
+    "title": "Me at the zoo",
+    "lengthSeconds": "19",
+    "keywords": ["zoo", "animals", "first video"],
+    "channelId": "UC4QobU6STFB0P71pmvOGN5A",
+    "isOwnerViewing": false,
+    "shortDescription": "The first video on YouTube.",
+    "isCrawlable": true,
+    "thumbnail": {
+      "thumbnails": [
+        { "url": "https://i.ytimg.com/vi/jNQXAC9IVRw/default.jpg", "width": 120, "height": 90 },
+        { "url": "https://i.ytimg.com/vi/jNQXAC9IVRw/mqdefault.jpg", "width": 320, "height": 180 },
+        { "url": "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg", "width": 480, "height": 360 },
+        { "url": "https://i.ytimg.com/vi/jNQXAC9IVRw/maxresdefault.jpg", "width": 1280, "height": 720 }
+      ]
+    },
+    "allowRatings": true,
+    "viewCount": "300000000",
+    "author": "jawed",
+    "isPrivate": false,
+    "isUnpluggedCorpus": false,
+    "isLiveContent": false
+  }
+}

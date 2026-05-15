@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Machine-specific
+local.properties
+
+# Keys
+*.jks
+*.keystore
+
+# Build logs and temp files
+build_log.txt
+
+# Claude Code session data
+.claude/

@@ -1,0 +1,11 @@
+{
+  "playabilityStatus": {
+    "status": "LOGIN_REQUIRED",
+    "reason": "This video is age-restricted and only available to users who are logged in.",
+    "errorScreen": {
+      "playerErrorMessageRenderer": {
+        "reason": { "simpleText": "Sign in to confirm your age" }
+      }
+    }
+  }
+}
