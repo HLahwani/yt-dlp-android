@@ -1,5 +1,10 @@
 package com.ytdlpdroid.innertube
 
+// playbackContext sent with all Android/iOS clients — tells YouTube we want
+// HTML5 adaptive streams and unlocks certain video types that otherwise return
+// UNPLAYABLE / "Video unavailable" from the InnerTube player API.
+private const val PLAYBACK_CTX = """"playbackContext": {"contentPlaybackContext": {"html5Preference": "HTML5_PREF_WANTS"}},"""
+
 internal sealed class InnerTubeClientConfig(
     val clientName: String,
     val clientNumber: String,
@@ -16,10 +21,10 @@ internal sealed class InnerTubeClientConfig(
     object ANDROID : InnerTubeClientConfig(
         clientName = "ANDROID",
         clientNumber = "3",
-        clientVersion = "19.09.37",
-        userAgent = "com.google.android.youtube/19.09.37 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001) gzip",
+        clientVersion = "19.44.38",
+        userAgent = "com.google.android.youtube/19.44.38 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001) gzip",
         androidSdkVersion = 30,
-        extraBodyFields = """"params": "8AEB",""",
+        extraBodyFields = """"params": "8AEB", $PLAYBACK_CTX""",
     )
 
     object ANDROID_TESTSUITE : InnerTubeClientConfig(
@@ -28,7 +33,7 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "1.9",
         userAgent = "com.google.android.youtube/1.9 (Linux; U; Android 13; Pixel 7 Pro Build/TQ3A.230901.001) gzip",
         androidSdkVersion = 33,
-        extraBodyFields = """"params": "8AEB",""",
+        extraBodyFields = """"params": "8AEB", $PLAYBACK_CTX""",
     )
 
     object TVHTML5_SIMPLY_EMBEDDED : InnerTubeClientConfig(
@@ -36,7 +41,7 @@ internal sealed class InnerTubeClientConfig(
         clientNumber = "85",
         clientVersion = "2.0",
         userAgent = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
-        extraBodyFields = """"thirdParty": {"embedUrl": "https://www.youtube.com/"},""",
+        extraBodyFields = """"thirdParty": {"embedUrl": "https://www.youtube.com/"}, $PLAYBACK_CTX""",
     )
 
     object ANDROID_VR : InnerTubeClientConfig(
@@ -45,13 +50,15 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "1.65.10",
         userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip",
         androidSdkVersion = 32,
+        extraBodyFields = PLAYBACK_CTX,
     )
 
     object IOS : InnerTubeClientConfig(
         clientName = "IOS",
         clientNumber = "5",
-        clientVersion = "19.09.3",
-        userAgent = "com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
+        clientVersion = "19.44.4",
+        userAgent = "com.google.ios.youtube/19.44.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
+        extraBodyFields = PLAYBACK_CTX,
     )
 
     object MWEB : InnerTubeClientConfig(
@@ -87,8 +94,8 @@ internal fun InnerTubeClientConfig.buildRequestBody(
 ): String {
     val sdkField = androidSdkVersion?.let { """"androidSdkVersion": $it,""" } ?: ""
     val visitorField = visitorData?.let { """"visitorData": "$it",""" } ?: ""
-    // Default to "US" matching yt-dlp behaviour (omitting gl can cause unexpected
-    // responses from some YouTube endpoints). An explicit regionCode overrides this.
+    // Default to "US" matching yt-dlp behaviour.
+    // An explicit regionCode lets callers access geo-restricted content.
     val glValue = regionCode ?: "US"
     return """
         {
