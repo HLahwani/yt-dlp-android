@@ -28,5 +28,6 @@ build_log.txt
 # Reference source trees downloaded for investigation
 yt-dlp-master/
 
-# Claude Code session data
+# Claude Code — local AI assistant files (never commit)
+CLAUDE.md
 .claude/
