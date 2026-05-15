@@ -26,8 +26,12 @@ sealed class YTDLPError(message: String, cause: Throwable? = null) : Exception(m
     class NetworkError(reason: String, cause: Throwable) :
         YTDLPError("Network error: $reason", cause)
 
-    class AllClientsFailed(videoId: String) :
-        YTDLPError("All InnerTube clients failed to retrieve streams for video $videoId")
+    class AllClientsFailed(videoId: String, lastError: Throwable? = null) :
+        YTDLPError(
+            "All InnerTube clients failed to retrieve streams for video $videoId" +
+            (lastError?.message?.let { " — $it" } ?: ""),
+            lastError,
+        )
 
     class PlayerJsFetchFailed(jsUrl: String, cause: Throwable) :
         YTDLPError("Failed to fetch player JS from $jsUrl", cause)
