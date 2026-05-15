@@ -24,9 +24,11 @@ internal class YouTubeExtractor(
 ) {
     // ANDROID_VR is placed early because it has the best geo-restriction bypass rate.
     // The full chain exhausts all clients before giving up.
+    // ANDROID_VR first — yt-dlp's default client. No PO token required, returns direct URLs.
+    // ANDROID and IOS require PO tokens for CDN access; they may return UNPLAYABLE without them.
     private val clientChain = listOf(
+        InnerTubeClientConfig.ANDROID_VR,
         InnerTubeClientConfig.ANDROID,
-        InnerTubeClientConfig.ANDROID_VR,          // best geo-bypass; loosest regional rules
         InnerTubeClientConfig.ANDROID_TESTSUITE,
         InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED,
         InnerTubeClientConfig.IOS,
