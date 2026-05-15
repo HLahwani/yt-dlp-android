@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Version read from gradle.properties → bump LIBRARY_VERSION for each release
+version = project.findProperty("LIBRARY_VERSION") as String? ?: "0.0.0"
+
 android {
     namespace = "com.ytdlpdroid"
     compileSdk = 35
@@ -31,6 +34,21 @@ android {
     }
     buildFeatures {
         buildConfig = false
+    }
+}
+
+// Rename the release AAR to yt-dlp-android-<version>.aar
+afterEvaluate {
+    tasks.named("bundleReleaseAar") {
+        doLast {
+            val outDir = layout.buildDirectory.dir("outputs/aar").get().asFile
+            val original = File(outDir, "library-release.aar")
+            val renamed  = File(outDir, "yt-dlp-android-$version.aar")
+            if (original.exists()) {
+                original.copyTo(renamed, overwrite = true)
+                original.delete()
+            }
+        }
     }
 }
 
