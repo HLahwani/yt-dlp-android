@@ -87,10 +87,9 @@ internal fun InnerTubeClientConfig.buildRequestBody(
 ): String {
     val sdkField = androidSdkVersion?.let { """"androidSdkVersion": $it,""" } ?: ""
     val visitorField = visitorData?.let { """"visitorData": "$it",""" } ?: ""
-    // Append "gl" only when a regionCode is provided so YouTube infers the region
-    // from the server-side IP for unrestricted access. An explicit regionCode lets
-    // callers access content that is geo-restricted to that region.
-    val glSuffix = if (regionCode != null) ""","gl": "$regionCode"""" else ""
+    // Default to "US" matching yt-dlp behaviour (omitting gl can cause unexpected
+    // responses from some YouTube endpoints). An explicit regionCode overrides this.
+    val glValue = regionCode ?: "US"
     return """
         {
           "context": {
@@ -101,7 +100,8 @@ internal fun InnerTubeClientConfig.buildRequestBody(
               $sdkField
               $visitorField
               $extraClientFields
-              "hl": "en"$glSuffix
+              "hl": "en",
+              "gl": "$glValue"
             }
           },
           "videoId": "$videoId",
