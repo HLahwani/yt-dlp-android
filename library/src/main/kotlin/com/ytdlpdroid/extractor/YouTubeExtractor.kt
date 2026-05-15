@@ -99,10 +99,15 @@ internal class YouTubeExtractor(
                 lastError = e; continue
             }
         }
-        // Surface geo-restriction if any client indicated it — the video is geo-blocked
-        // and bypass clients were also blocked (bot-detection on non-residential IPs).
-        // Otherwise throw AllClientsFailed with the last error attached as cause so
-        // callers get a diagnosable message (e.g. "UNPLAYABLE: page needs to be reloaded").
-        throw geoBlockedError ?: YTDLPError.AllClientsFailed(videoId, lastError)
+        // Surface the most specific terminal error so callers can react appropriately:
+        //
+        //  GeoBlocked     — any client indicated geo-restriction (bypass clients couldn't help)
+        //  VideoUnavailable — WEB (last, most capable client) still says "unavailable":
+        //                     the video is deleted, private, or genuinely inaccessible;
+        //                     not a transient bot-detection issue worth retrying
+        //  AllClientsFailed — mixed failures (bot detection, network, etc.)
+        throw geoBlockedError
+            ?: if (lastError is YTDLPError.VideoUnavailable) lastError
+               else YTDLPError.AllClientsFailed(videoId, lastError)
     }
 }
