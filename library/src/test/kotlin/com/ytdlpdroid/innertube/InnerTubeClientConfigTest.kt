@@ -69,4 +69,40 @@ class InnerTubeClientConfigTest {
         assertTrue(body.contains("\"racyCheckOk\": true"))
         assertTrue(body.contains("\"contentCheckOk\": true"))
     }
+
+    @Test
+    fun `signatureTimestamp is included in playbackContext when provided`() {
+        val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123", signatureTimestamp = 19569)
+        assertTrue(body.contains("signatureTimestamp"))
+        assertTrue(body.contains("19569"))
+        assertTrue(body.contains("HTML5_PREF_WANTS"))
+    }
+
+    @Test
+    fun `ANDROID body omits signatureTimestamp when not provided`() {
+        val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123")
+        assertTrue(!body.contains("signatureTimestamp"))
+        assertTrue(body.contains("HTML5_PREF_WANTS"))
+    }
+
+    @Test
+    fun `TVHTML5 embed URL contains the video ID`() {
+        val body = InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED.buildRequestBody("abc12345678")
+        assertTrue(body.contains("embedUrl"))
+        assertTrue(body.contains("abc12345678"))
+        assertTrue(body.contains("watch?v=abc12345678"))
+    }
+
+    @Test
+    fun `WEB body includes playbackContext`() {
+        val body = InnerTubeClientConfig.WEB.buildRequestBody("test123")
+        assertTrue(body.contains("playbackContext"))
+        assertTrue(body.contains("HTML5_PREF_WANTS"))
+    }
+
+    @Test
+    fun `MWEB body does not include playbackContext`() {
+        val body = InnerTubeClientConfig.MWEB.buildRequestBody("test123")
+        assertTrue(!body.contains("playbackContext"))
+    }
 }

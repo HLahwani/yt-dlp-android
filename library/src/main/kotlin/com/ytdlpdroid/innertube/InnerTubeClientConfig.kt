@@ -1,10 +1,5 @@
 package com.ytdlpdroid.innertube
 
-// playbackContext sent with all Android/iOS clients — tells YouTube we want
-// HTML5 adaptive streams and unlocks certain video types that otherwise return
-// UNPLAYABLE / "Video unavailable" from the InnerTube player API.
-private const val PLAYBACK_CTX = """"playbackContext": {"contentPlaybackContext": {"html5Preference": "HTML5_PREF_WANTS"}},"""
-
 internal sealed class InnerTubeClientConfig(
     val clientName: String,
     val clientNumber: String,
@@ -13,18 +8,28 @@ internal sealed class InnerTubeClientConfig(
     val androidSdkVersion: Int? = null,
     /** Extra fields inside `context.client` JSON object. */
     val extraClientFields: String = "",
-    /** Extra top-level JSON fields in the request body. */
+    /** Extra top-level JSON fields in the request body (static, non-video-specific). */
     val extraBodyFields: String = "",
     /** YouTube InnerTube API key appended as ?key= (required for some clients). */
     val apiKey: String? = null,
+    /** Whether to include a playbackContext block in the request body. */
+    val usePlaybackContext: Boolean = false,
 ) {
+    /**
+     * Returns top-level body fields that may depend on the video ID.
+     * Subclasses that need video-specific fields (e.g. embed URL) override this.
+     */
+    open fun dynamicBodyFields(videoId: String): String = extraBodyFields
+
     object ANDROID : InnerTubeClientConfig(
         clientName = "ANDROID",
         clientNumber = "3",
         clientVersion = "19.44.38",
         userAgent = "com.google.android.youtube/19.44.38 (Linux; U; Android 11; sdk_gphone_x86 Build/RSR1.201013.001) gzip",
         androidSdkVersion = 30,
-        extraBodyFields = """"params": "8AEB", $PLAYBACK_CTX""",
+        extraClientFields = """"osName": "Android", "osVersion": "11",""",
+        extraBodyFields = """"params": "8AEB",""",
+        usePlaybackContext = true,
     )
 
     object ANDROID_TESTSUITE : InnerTubeClientConfig(
@@ -33,7 +38,9 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "1.9",
         userAgent = "com.google.android.youtube/1.9 (Linux; U; Android 13; Pixel 7 Pro Build/TQ3A.230901.001) gzip",
         androidSdkVersion = 33,
-        extraBodyFields = """"params": "8AEB", $PLAYBACK_CTX""",
+        extraClientFields = """"osName": "Android", "osVersion": "13",""",
+        extraBodyFields = """"params": "8AEB",""",
+        usePlaybackContext = true,
     )
 
     object TVHTML5_SIMPLY_EMBEDDED : InnerTubeClientConfig(
@@ -41,8 +48,12 @@ internal sealed class InnerTubeClientConfig(
         clientNumber = "85",
         clientVersion = "2.0",
         userAgent = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
-        extraBodyFields = """"thirdParty": {"embedUrl": "https://www.youtube.com/"}, $PLAYBACK_CTX""",
-    )
+        usePlaybackContext = true,
+    ) {
+        // Embed URL must reference the specific video for the age-bypass to work.
+        override fun dynamicBodyFields(videoId: String) =
+            """"thirdParty": {"embedUrl": "https://www.youtube.com/watch?v=$videoId"},"""
+    }
 
     object ANDROID_VR : InnerTubeClientConfig(
         clientName = "ANDROID_VR",
@@ -50,7 +61,9 @@ internal sealed class InnerTubeClientConfig(
         clientVersion = "1.65.10",
         userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip",
         androidSdkVersion = 32,
-        extraBodyFields = PLAYBACK_CTX,
+        // Device fingerprint matching the Oculus Quest 3 — required for YouTube to trust this client.
+        extraClientFields = """"osName": "Android", "osVersion": "12L", "deviceMake": "Oculus", "deviceModel": "Quest 3",""",
+        usePlaybackContext = true,
     )
 
     object IOS : InnerTubeClientConfig(
@@ -58,7 +71,8 @@ internal sealed class InnerTubeClientConfig(
         clientNumber = "5",
         clientVersion = "19.44.4",
         userAgent = "com.google.ios.youtube/19.44.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
-        extraBodyFields = PLAYBACK_CTX,
+        extraClientFields = """"osName": "iPhone", "osVersion": "17.5.1.21F90", "deviceMake": "Apple", "deviceModel": "iPhone16,2",""",
+        usePlaybackContext = true,
     )
 
     object MWEB : InnerTubeClientConfig(
@@ -84,6 +98,7 @@ internal sealed class InnerTubeClientConfig(
         userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         extraClientFields = """"originalUrl": "https://www.youtube.com", "platform": "DESKTOP", "utcOffsetMinutes": 0,""",
         apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
+        usePlaybackContext = true,
     )
 }
 
@@ -91,12 +106,18 @@ internal fun InnerTubeClientConfig.buildRequestBody(
     videoId: String,
     visitorData: String? = null,
     regionCode: String? = null,
+    signatureTimestamp: Int? = null,
 ): String {
     val sdkField = androidSdkVersion?.let { """"androidSdkVersion": $it,""" } ?: ""
     val visitorField = visitorData?.let { """"visitorData": "$it",""" } ?: ""
     // Default to "US" matching yt-dlp behaviour.
     // An explicit regionCode lets callers access geo-restricted content.
     val glValue = regionCode ?: "US"
+    val dynamicFields = dynamicBodyFields(videoId)
+    val playbackCtxField = if (usePlaybackContext) {
+        val stsField = signatureTimestamp?.let { """, "signatureTimestamp": $it""" } ?: ""
+        """"playbackContext": {"contentPlaybackContext": {"html5Preference": "HTML5_PREF_WANTS"$stsField}},"""
+    } else ""
     return """
         {
           "context": {
@@ -112,7 +133,8 @@ internal fun InnerTubeClientConfig.buildRequestBody(
             }
           },
           "videoId": "$videoId",
-          $extraBodyFields
+          $dynamicFields
+          $playbackCtxField
           "racyCheckOk": true,
           "contentCheckOk": true
         }

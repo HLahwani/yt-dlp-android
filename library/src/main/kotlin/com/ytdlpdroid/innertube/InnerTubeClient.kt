@@ -31,6 +31,7 @@ internal class InnerTubeClient(
         videoId: String,
         config: InnerTubeClientConfig,
         regionCode: String? = null,
+        signatureTimestamp: Int? = null,
     ): RawPlayerResponse = withContext(Dispatchers.IO) {
         // Only fetch visitor data / session cookies for the WEB client — other clients don't
         // need them and the homepage fetch would consume MockWebServer responses in unit tests.
@@ -38,7 +39,7 @@ internal class InnerTubeClient(
 
         val visitorData = if (config is InnerTubeClientConfig.WEB) cachedVisitorData else null
 
-        val body = config.buildRequestBody(videoId, visitorData, regionCode)
+        val body = config.buildRequestBody(videoId, visitorData, regionCode, signatureTimestamp)
             .toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val request = Request.Builder()
