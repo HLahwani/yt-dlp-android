@@ -71,16 +71,17 @@ class InnerTubeClientConfigTest {
     }
 
     @Test
-    fun `signatureTimestamp is included in playbackContext when provided`() {
-        val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123", signatureTimestamp = 19569)
+    fun `WEB body includes signatureTimestamp when provided`() {
+        val body = InnerTubeClientConfig.WEB.buildRequestBody("test123", signatureTimestamp = 19569)
         assertTrue(body.contains("signatureTimestamp"))
         assertTrue(body.contains("19569"))
         assertTrue(body.contains("HTML5_PREF_WANTS"))
     }
 
     @Test
-    fun `ANDROID body omits signatureTimestamp when not provided`() {
-        val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123")
+    fun `ANDROID body never includes signatureTimestamp`() {
+        // sts from the web player JS is invalid for Android player version — omit it.
+        val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123", signatureTimestamp = 19569)
         assertTrue(!body.contains("signatureTimestamp"))
         assertTrue(body.contains("HTML5_PREF_WANTS"))
     }
