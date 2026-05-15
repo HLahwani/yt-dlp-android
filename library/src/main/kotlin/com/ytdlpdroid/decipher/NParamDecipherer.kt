@@ -42,7 +42,7 @@ internal class NParamDecipherer(private val jsEngine: JsEngine) {
      * Validates extracted function code by running it with a test input.
      * Rejects functions that:
      *  - Return `undefined` or the same string (not a transformer)
-     *  - Return strings with commas (type-boxer pattern, e.g. `yu` returning `[0, input]`)
+     *  - Return pure hex strings (hash-function false positives like `88cbd254cf8a0353`)
      *  - Return strings outside plausible n-param length (5-25 chars)
      */
     private fun isPlausibleNsigFunction(fnCode: String): Boolean {
@@ -52,11 +52,13 @@ internal class NParamDecipherer(private val jsEngine: JsEngine) {
             val r1 = jsEngine.execute(fnCode, testInput1) ?: return false
             val r2 = jsEngine.execute(fnCode, testInput2) ?: return false
             val base64url = Regex("[A-Za-z0-9_\\-]+")
+            val pureHex = Regex("[0-9a-f]+")  // all-lowercase hex = hash function, not nsig
             r1 != testInput1 && r1 != "undefined" && r1 != "null"
                     && '=' !in r1 && '+' !in r1 && '/' !in r1
                     && r1.length in 5..25 && r1.length <= testInput1.length + 2
-                    && base64url.matches(r1)
-                    && r2 != testInput2 && r2.length in 5..25 && base64url.matches(r2)
+                    && base64url.matches(r1) && !pureHex.matches(r1)
+                    && r2 != testInput2 && r2.length in 5..25
+                    && base64url.matches(r2) && !pureHex.matches(r2)
                     && r1 != r2
         } catch (_: Exception) {
             false
@@ -137,7 +139,7 @@ if(typeof crypto==='undefined'){var crypto={getRandomValues:function(a){for(var 
         return """
 (function() {
     var nVal="$escapedN",ti="$ti",ti2="$ti2",res=nVal;
-    function ok(r,i){return typeof r==='string'&&r!==i&&r!=='undefined'&&r!=='null'&&r.indexOf('=')<0&&r.indexOf('+')<0&&r.indexOf('/')<0&&r.indexOf(':')<0&&r.length>=5&&r.length<=i.length+2&&/^[A-Za-z0-9_-]+${'$'}/.test(r);}
+    function ok(r,i){return typeof r==='string'&&r!==i&&r!=='undefined'&&r!=='null'&&r.indexOf('=')<0&&r.indexOf('+')<0&&r.indexOf('/')<0&&r.indexOf(':')<0&&r.length>=5&&r.length<=i.length+2&&/^[A-Za-z0-9_-]+${'$'}/.test(r)&&!/^[0-9a-f]+${'$'}/.test(r);}
     function isRealNsig(fn){try{var r1=fn(ti),r2=fn(ti2);return ok(r1,ti)&&ok(r2,ti2)&&r1!==r2;}catch(e){return false;}}
     try{
         // _yt_player is the `g` param of the IIFE — all player functions assigned to g are here.
