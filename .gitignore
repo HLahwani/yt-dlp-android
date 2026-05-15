@@ -12,12 +12,21 @@ captures/
 # Machine-specific
 local.properties
 
-# Keys
+# Keys & signing
 *.jks
 *.keystore
 
-# Build logs and temp files
+# Kotlin compiler internals
+.kotlin/
+
+# Diagnostic / debug artifacts (never commit these)
+*.result.txt
+Exception.txt
+cmdOut.txt
 build_log.txt
+
+# Reference source trees downloaded for investigation
+yt-dlp-master/
 
 # Claude Code session data
 .claude/
