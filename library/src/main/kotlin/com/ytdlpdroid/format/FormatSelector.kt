@@ -13,6 +13,17 @@ internal object FormatSelector {
         val muxed: StreamFormat?,
     )
 
+    /**
+     * True when the process is running on a 32-bit x86 device with no ARM ABI support.
+     * libgav1 (Media3's AV1 software decoder) crashes on initialisation on x86-32, so
+     * we automatically downgrade AV1 to a lower priority on those devices.
+     * The check is done once at class-load time and returns false on the JVM (unit tests).
+     */
+    private val av1UnsafeOnThisDevice: Boolean = runCatching {
+        val abis = android.os.Build.SUPPORTED_ABIS
+        abis.any { it == "x86" } && abis.none { it == "arm64-v8a" || it == "armeabi-v7a" }
+    }.getOrDefault(false)
+
     fun select(
         formats: List<Pair<RawFormat, String>>,
         options: ExtractionOptions,
@@ -45,10 +56,21 @@ internal object FormatSelector {
     private fun selectBestVideo(formats: List<StreamFormat>, opts: ExtractionOptions): StreamFormat? {
         var candidates = formats
             .filter { opts.maxVideoHeight == null || (it.height ?: 0) <= opts.maxVideoHeight }
-        if (opts.preferH264)
-            candidates = candidates.filter {
+
+        if (opts.preferH264) {
+            val h264Only = candidates.filter {
                 MimeTypeParser.detectVideoCodec(it.mimeType) == VideoCodec.H264
             }
+            if (h264Only.isNotEmpty()) candidates = h264Only
+        } else if (av1UnsafeOnThisDevice) {
+            // libgav1 (AV1 software decoder) crashes on x86-32 — skip AV1 automatically.
+            // Fall through to AV1 only if it is the sole codec available.
+            val nonAv1 = candidates.filter {
+                MimeTypeParser.detectVideoCodec(it.mimeType) != VideoCodec.AV1
+            }
+            if (nonAv1.isNotEmpty()) candidates = nonAv1
+        }
+
         return candidates.maxWithOrNull(
             compareBy<StreamFormat> { it.height ?: 0 }
                 .thenBy { it.fps ?: 0 }
