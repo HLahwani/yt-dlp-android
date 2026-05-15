@@ -38,7 +38,18 @@ internal class YouTubeExtractor(
     suspend fun extract(videoId: String, options: ExtractionOptions): StreamResult {
         extractionCache.get(videoId)?.let { return it }
 
-        val (playerResponse, winningClient) = fetchWithFallback(videoId, options.regionCode)
+        // Pre-fetch the player JS so we can include signatureTimestamp (sts) in InnerTube
+        // requests. sts is required by YouTube for age-restricted videos to return OK rather
+        // than UNPLAYABLE. Failures here are non-fatal — we proceed without sts.
+        val playerJsUrl = runCatching { playerJsRepo.fetchPlayerJsUrl(videoId) }.getOrNull()
+        val signatureTimestamp = playerJsUrl?.let { url ->
+            runCatching {
+                val js = playerJsRepo.fetchPlayerJs(url)
+                playerJsRepo.extractSignatureTimestamp(js)
+            }.getOrNull()
+        }
+
+        val (playerResponse, winningClient) = fetchWithFallback(videoId, options.regionCode, signatureTimestamp)
 
         if (PlayerResponseParser.isLive(playerResponse))
             throw YTDLPError.LiveStreamNotSupported(videoId)
@@ -47,13 +58,15 @@ internal class YouTubeExtractor(
         val streamingData = playerResponse.streamingData
             ?: throw YTDLPError.NoStreamsFound(videoId)
 
-        val playerJsUrl = playerJsRepo.fetchPlayerJsUrl(videoId)
+        // Reuse the already-fetched player JS URL; fall back to a fresh fetch only if the
+        // pre-fetch failed (transient error, bot-detected watch page, etc.).
+        val resolvedPlayerJsUrl = playerJsUrl ?: playerJsRepo.fetchPlayerJsUrl(videoId)
 
         val allFormats = streamingData.adaptiveFormats + streamingData.formats
         val resolvedFormats = coroutineScope {
             allFormats.map { fmt ->
                 async(Dispatchers.IO) {
-                    runCatching { fmt to decipherService.buildPlayableUrl(fmt, playerJsUrl) }
+                    runCatching { fmt to decipherService.buildPlayableUrl(fmt, resolvedPlayerJsUrl) }
                         .getOrNull()
                 }
             }.awaitAll().filterNotNull()
@@ -81,12 +94,13 @@ internal class YouTubeExtractor(
     private suspend fun fetchWithFallback(
         videoId: String,
         regionCode: String?,
+        signatureTimestamp: Int? = null,
     ): Pair<RawPlayerResponse, InnerTubeClientConfig> {
         var lastError: Throwable? = null
         var geoBlockedError: YTDLPError.GeoBlocked? = null
         for (client in clientChain) {
             try {
-                val response = innerTubeClient.fetchPlayerResponse(videoId, client, regionCode)
+                val response = innerTubeClient.fetchPlayerResponse(videoId, client, regionCode, signatureTimestamp)
                 PlayerResponseParser.checkPlayability(response, videoId)
                 return response to client
             } catch (e: YTDLPError.LiveStreamNotSupported) {

@@ -3,6 +3,7 @@ package com.ytdlpdroid.decipher
 import com.ytdlpdroid.model.YTDLPError
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import org.junit.Assert.assertNull
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -78,6 +79,24 @@ class PlayerJsRepositoryTest {
         assertThrows(YTDLPError.PlayerJsFetchFailed::class.java) {
             runBlocking { repo.fetchPlayerJs("/s/player/abc/base.js") }
         }
+    }
+
+    @Test
+    fun `extractSignatureTimestamp returns sts from player JS`() {
+        val js = "some code; a.signatureTimestamp=19569; more code;"
+        val result = repo.extractSignatureTimestamp(js)
+        assertEquals(19569, result)
+    }
+
+    @Test
+    fun `extractSignatureTimestamp handles sts colon form`() {
+        val js = """var x={sts:12345,other:1}"""
+        assertEquals(12345, repo.extractSignatureTimestamp(js))
+    }
+
+    @Test
+    fun `extractSignatureTimestamp returns null when not present`() {
+        assertNull(repo.extractSignatureTimestamp("no sts here at all"))
     }
 
     @Test

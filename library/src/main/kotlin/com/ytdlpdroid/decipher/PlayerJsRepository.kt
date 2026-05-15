@@ -50,6 +50,11 @@ internal class PlayerJsRepository(
 
     fun evictOldCache() = diskCache.evictBeyond(2)
 
+    /** Extracts the signatureTimestamp (sts) from player JS. Required in playbackContext for age-restricted video bypass. */
+    fun extractSignatureTimestamp(playerJs: String): Int? =
+        Regex("""(?:signatureTimestamp|sts)\s*[=:]\s*(\d{5,6})""")
+            .find(playerJs)?.groupValues?.get(1)?.toIntOrNull()
+
     private fun fetchText(url: String, vararg headers: Pair<String, String>): String {
         val req = Request.Builder().url(url).apply {
             headers.forEach { (k, v) -> header(k, v) }
