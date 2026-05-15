@@ -15,4 +15,19 @@ internal class QuickJsEngine : JsEngine {
     }
 
     private external fun executeNative(jsCode: String, argument: String): String?
+
+    /**
+     * Loads [playerJs] into a high-memory QuickJS runtime (128 MB), then evaluates
+     * [discoveryScript] in that context and returns the string result.
+     *
+     * Use this for player JS files that use string-table obfuscation (e.g. player
+     * version 25f11721) where the nsig function cannot be extracted by regex patterns.
+     * [discoveryScript] should end with an expression that evaluates to the
+     * transformed n-param string.
+     */
+    fun executeWithPlayerJs(playerJs: String, discoveryScript: String): String? =
+        executeWithPlayerJsNative(playerJs, discoveryScript)
+            ?.takeIf { it.isNotBlank() && it != "undefined" && it != "null" }
+
+    private external fun executeWithPlayerJsNative(playerJs: String, discoveryScript: String): String?
 }
