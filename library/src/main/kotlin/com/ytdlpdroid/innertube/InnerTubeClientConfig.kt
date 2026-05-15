@@ -42,8 +42,8 @@ internal sealed class InnerTubeClientConfig(
     object ANDROID_VR : InnerTubeClientConfig(
         clientName = "ANDROID_VR",
         clientNumber = "28",
-        clientVersion = "1.57.29",
-        userAgent = "com.google.android.apps.youtube.vr.oculus/1.57.29 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip",
+        clientVersion = "1.65.10",
+        userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip",
         androidSdkVersion = 32,
     )
 
@@ -83,9 +83,14 @@ internal sealed class InnerTubeClientConfig(
 internal fun InnerTubeClientConfig.buildRequestBody(
     videoId: String,
     visitorData: String? = null,
+    regionCode: String? = null,
 ): String {
     val sdkField = androidSdkVersion?.let { """"androidSdkVersion": $it,""" } ?: ""
     val visitorField = visitorData?.let { """"visitorData": "$it",""" } ?: ""
+    // Append "gl" only when a regionCode is provided so YouTube infers the region
+    // from the server-side IP for unrestricted access. An explicit regionCode lets
+    // callers access content that is geo-restricted to that region.
+    val glSuffix = if (regionCode != null) ""","gl": "$regionCode"""" else ""
     return """
         {
           "context": {
@@ -96,8 +101,7 @@ internal fun InnerTubeClientConfig.buildRequestBody(
               $sdkField
               $visitorField
               $extraClientFields
-              "hl": "en",
-              "gl": "US"
+              "hl": "en"$glSuffix
             }
           },
           "videoId": "$videoId",

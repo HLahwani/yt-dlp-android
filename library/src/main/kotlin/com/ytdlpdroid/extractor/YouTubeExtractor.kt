@@ -22,11 +22,13 @@ internal class YouTubeExtractor(
     private val decipherService: DecipherService,
     private val extractionCache: ExtractionCache,
 ) {
+    // ANDROID_VR is placed early because it has the best geo-restriction bypass rate.
+    // The full chain exhausts all clients before giving up.
     private val clientChain = listOf(
         InnerTubeClientConfig.ANDROID,
+        InnerTubeClientConfig.ANDROID_VR,          // best geo-bypass; loosest regional rules
         InnerTubeClientConfig.ANDROID_TESTSUITE,
         InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED,
-        InnerTubeClientConfig.ANDROID_VR,
         InnerTubeClientConfig.IOS,
         InnerTubeClientConfig.MWEB,
         InnerTubeClientConfig.WEB_EMBEDDED,
@@ -36,7 +38,7 @@ internal class YouTubeExtractor(
     suspend fun extract(videoId: String, options: ExtractionOptions): StreamResult {
         extractionCache.get(videoId)?.let { return it }
 
-        val (playerResponse, winningClient) = fetchWithFallback(videoId)
+        val (playerResponse, winningClient) = fetchWithFallback(videoId, options.regionCode)
 
         if (PlayerResponseParser.isLive(playerResponse))
             throw YTDLPError.LiveStreamNotSupported(videoId)
@@ -76,21 +78,28 @@ internal class YouTubeExtractor(
         return result
     }
 
-    private suspend fun fetchWithFallback(videoId: String): Pair<RawPlayerResponse, InnerTubeClientConfig> {
+    private suspend fun fetchWithFallback(
+        videoId: String,
+        regionCode: String?,
+    ): Pair<RawPlayerResponse, InnerTubeClientConfig> {
         var lastError: Throwable? = null
         for (client in clientChain) {
             try {
-                val response = innerTubeClient.fetchPlayerResponse(videoId, client)
+                val response = innerTubeClient.fetchPlayerResponse(videoId, client, regionCode)
                 PlayerResponseParser.checkPlayability(response, videoId)
                 return response to client
             } catch (e: YTDLPError.LiveStreamNotSupported) {
                 throw e  // no point trying other clients for an offline live stream
+            } catch (e: YTDLPError.GeoBlocked) {
+                // Geo-block on one client doesn't rule out others (ANDROID_VR bypasses more).
+                lastError = e; continue
             } catch (e: YTDLPError) {
-                // VideoUnavailable from one client (e.g. ANDROID requiring PO token) does not
-                // mean the video is unavailable from all clients — always exhaust the chain.
                 lastError = e; continue
             }
         }
-        throw YTDLPError.AllClientsFailed(videoId)
+        // If every client returned a geo-block, surface that specific error so callers
+        // can distinguish geo-restriction from other failures.
+        throw if (lastError is YTDLPError.GeoBlocked) lastError
+              else YTDLPError.AllClientsFailed(videoId)
     }
 }
