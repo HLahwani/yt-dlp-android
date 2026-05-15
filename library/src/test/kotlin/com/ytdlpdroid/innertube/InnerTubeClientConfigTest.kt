@@ -33,10 +33,10 @@ class InnerTubeClientConfigTest {
     }
 
     @Test
-    fun `ANDROID body includes params field`() {
+    fun `ANDROID body does not include params field`() {
+        // yt-dlp sends no PLAYER_PARAMS for android — adding params causes UNPLAYABLE.
         val body = InnerTubeClientConfig.ANDROID.buildRequestBody("test123")
-        assertTrue(body.contains("\"params\""))
-        assertTrue(body.contains("8AEB"))
+        assertTrue(!body.contains("\"params\""))
     }
 
     @Test

@@ -83,9 +83,9 @@ class YouTubeExtractorTest {
     }
 
     @Test
-    fun `successful ANDROID response returns StreamResult`() = runTest {
+    fun `successful ANDROID_VR response returns StreamResult`() = runTest {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) } returns okResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) } returns okResponse()
         }
         val result = YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
             .extract("testVid", ExtractionOptions())
@@ -94,12 +94,11 @@ class YouTubeExtractorTest {
     }
 
     @Test
-    fun `age-gated ANDROID falls through to ANDROID_VR`() = runTest {
-        // Chain order: ANDROID → ANDROID_VR → ... ANDROID_VR is now position 2.
+    fun `age-gated ANDROID_VR falls through to ANDROID`() = runTest {
+        // Chain order: ANDROID_VR (first, yt-dlp default) → ANDROID → ...
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) } returns ageGatedResponse()
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) } returns okResponse()
-            // Remaining clients unreachable since ANDROID_VR succeeds
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) } returns ageGatedResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) } returns okResponse()
             coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_TESTSUITE, any(), any()) } returns ageGatedResponse()
             coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.TVHTML5_SIMPLY_EMBEDDED, any(), any()) } returns ageGatedResponse()
             coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.IOS, any(), any()) } returns ageGatedResponse()
@@ -110,7 +109,7 @@ class YouTubeExtractorTest {
         val result = YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
             .extract("testVid", ExtractionOptions())
         assertEquals("testVid", result.videoId)
-        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) }
+        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) }
     }
 
     @Test
@@ -130,7 +129,7 @@ class YouTubeExtractorTest {
     fun `live stream throws LiveStreamNotSupported`() {
         val liveResponse = okResponse().copy(videoDetails = okDetails.copy(isLiveContent = true))
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) } returns liveResponse
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) } returns liveResponse
         }
         assertThrows(YTDLPError.LiveStreamNotSupported::class.java) {
             runBlocking {
@@ -143,7 +142,7 @@ class YouTubeExtractorTest {
     @Test
     fun `result is stored in cache after successful extraction`() = runTest {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, any(), any()) } returns okResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, any(), any()) } returns okResponse()
         }
         val cache = emptyCache()
         YouTubeExtractor(client, makeRepo(), makeDecipher(), cache)
@@ -169,10 +168,10 @@ class YouTubeExtractorTest {
     @Test
     fun `regionCode is threaded to InnerTube requests`() = runTest {
         val client = mockk<InnerTubeClient> {
-            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, "DE", any()) } returns okResponse()
+            coEvery { fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, "DE", any()) } returns okResponse()
         }
         YouTubeExtractor(client, makeRepo(), makeDecipher(), emptyCache())
             .extract("testVid", ExtractionOptions(regionCode = "DE"))
-        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID, "DE", any()) }
+        coVerify { client.fetchPlayerResponse(any(), InnerTubeClientConfig.ANDROID_VR, "DE", any()) }
     }
 }
