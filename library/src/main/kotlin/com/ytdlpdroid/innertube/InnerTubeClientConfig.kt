@@ -28,6 +28,9 @@ internal sealed class InnerTubeClientConfig(
     // yt-dlp default: android_vr (no PO token required, returns direct stream URLs).
     // NOTE: Do NOT add params="8AEB" here — yt-dlp sends no PLAYER_PARAMS for android_vr,
     // and adding it causes YouTube to return UNPLAYABLE for this client.
+    // No apiKey — yt-dlp does not send a key for android_vr (REQUIRE_JS_PLAYER=False means no
+    // watch page is fetched, so no ytcfg API key is available). Adding the key causes YouTube
+    // to route the request differently and return UNPLAYABLE.
     object ANDROID_VR : InnerTubeClientConfig(
         clientName = "ANDROID_VR",
         clientNumber = "28",
@@ -35,7 +38,6 @@ internal sealed class InnerTubeClientConfig(
         userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
         androidSdkVersion = 32,
         extraClientFields = """"osName": "Android", "osVersion": "12L", "deviceMake": "Oculus", "deviceModel": "Quest 3",""",
-        apiKey = INNERTUBE_API_KEY,
         usePlaybackContext = true,
     )
 
